@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { get, qs } from '../api.js'
 import PropertyCard from '../components/PropertyCard.jsx'
-import SearchBox from '../components/SearchBox.jsx'
+import SearchCard from '../components/SearchCard.jsx'
 
 const FILTER_KEYS = ['listing_type', 'city', 'property_type', 'bhk', 'min_price', 'max_price', 'budget']
 
@@ -41,12 +41,12 @@ export default function Properties() {
 
   return (
     <div className="wrap">
-      <div className="page-head">
+      <div className="search-page-head">
         <div className="eyebrow">Browse</div>
-        <h1>All <em className="hl">Properties</em></h1>
+        <h1>All <em style={{ fontStyle: 'normal', background: 'linear-gradient(transparent 62%,var(--grey) 62%)', padding: '0 4px' }}>Properties</em></h1>
       </div>
       <div className="filter-bar">
-        <SearchBox
+        <SearchCard
           options={options}
           initial={filters}
           onSubmit={(p) => setParams(Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '')))}
@@ -54,7 +54,7 @@ export default function Properties() {
       </div>
 
       {data === null ? (
-        <div className="loading">Loading…</div>
+        <div className="loading">Loading properties…</div>
       ) : data.results.length === 0 ? (
         <div className="empty">No properties match your search.</div>
       ) : (
@@ -72,7 +72,7 @@ export default function Properties() {
           )}
         </>
       )}
-      <div style={{ height: 80 }} />
+      <div style={{ height: 90 }} />
     </div>
   )
 }

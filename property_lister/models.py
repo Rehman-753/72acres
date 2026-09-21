@@ -29,6 +29,19 @@ class ListerProfile(models.Model):
         return self.approval_status == self.ApprovalStatus.APPROVED
 
 
+class StoredFile(models.Model):
+    """An uploaded file kept in the database (used when MEDIA_IN_DATABASE=1, e.g.
+    on Render's free plan which has no persistent disk). Not exposed in any form
+    or API; images are served read-only through /media/<name>."""
+
+    name = models.CharField(max_length=255, unique=True)
+    content = models.BinaryField()
+    content_type = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
+
+
 class PropertyDetail(models.Model):
     # ------------------------------------------------------------------
     # Choices

@@ -38,6 +38,7 @@ class PublicBrowseTests(TestCase):
         self.assertEqual(t(listing_type="rent"), ["Big villa"])
         self.assertEqual(t(max_price="5000000"), ["Cheap flat"])
         self.assertEqual(t(min_price="5000000"), ["Big villa"])
+        self.assertEqual(t(property_type="villa,flat"), ["Big villa", "Cheap flat"])
         self.assertEqual(t(bhk="4"), ["Big villa"])
         self.assertEqual(t(bhk="2"), ["Cheap flat"])
         self.assertEqual(t(q="villa"), ["Big villa"])
@@ -60,3 +61,9 @@ class PublicBrowseTests(TestCase):
         data = self.client.get(reverse("users:options")).json()
         self.assertEqual(len(data["amenities"]), 30)
         self.assertEqual(len(data["property_type"]), 10)
+
+    def test_options_lists_only_public_cities(self):
+        make_property(self.ok, city="Pune")
+        make_property(self.ok, city="Pune")
+        make_property(self.pending, city="Secret")
+        self.assertEqual(self.client.get(reverse("users:options")).json()["cities"], ["Pune"])

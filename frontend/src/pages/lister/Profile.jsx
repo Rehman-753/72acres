@@ -36,9 +36,9 @@ export default function Profile() {
   }
 
   return (
-    <form onSubmit={submit} style={{ maxWidth: 520 }}>
+    <form className="profile-form" onSubmit={submit} style={{ maxWidth: 520 }}>
       <h2 style={{ marginBottom: 24 }}>My Profile</h2>
-      {msg && <div className="form-error" style={{ color: 'var(--ok)', borderColor: 'var(--ok)', background: '#f2fbf6' }}>{msg}</div>}
+      {msg && <div className="form-ok">{msg}</div>}
       <div className="field"><label>Username</label><input value={v.username} disabled /></div>
       <div className="field"><label>Account Status</label><input value={v.approval_status} disabled /></div>
       <div className="field"><label>First Name</label><input value={v.first_name} onChange={set('first_name')} />{err('first_name')}</div>
@@ -48,3 +48,4 @@ export default function Profile() {
     </form>
   )
 }
+

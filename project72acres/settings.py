@@ -1,21 +1,36 @@
 """
 Django settings for project72acres.
 
-Development defaults work out of the box (SQLite). For production, set the
-environment variables below and switch DATABASES to PostgreSQL.
+Development defaults work out of the box (SQLite, local media). Production is
+configured purely through environment variables (see DEPLOY.md):
+  DJANGO_SECRET_KEY, DJANGO_DEBUG=0, DJANGO_ALLOWED_HOSTS,
+  DJANGO_CSRF_TRUSTED_ORIGINS, DATABASE_URL, MEDIA_IN_DATABASE=1.
 """
 
 import os
 from pathlib import Path
 
+import dj_database_url
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def env_list(name, default=""):
+    return [v.strip() for v in os.environ.get(name, default).split(",") if v.strip()]
+
 
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "django-insecure-dev-only-change-me-in-production",
 )
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
-ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h]
+
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS")
+if os.environ.get("RENDER_EXTERNAL_HOSTNAME"):  # set automatically by Render
+    ALLOWED_HOSTS.append(os.environ["RENDER_EXTERNAL_HOSTNAME"])
+
+if not DEBUG and SECRET_KEY.startswith("django-insecure"):
+    raise RuntimeError("Set DJANGO_SECRET_KEY when DJANGO_DEBUG=0.")
 
 
 INSTALLED_APPS = [
@@ -31,6 +46,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # serves collected static files (admin CSS/JS)
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -59,13 +75,12 @@ TEMPLATES = [
 WSGI_APPLICATION = "project72acres.wsgi.application"
 
 
-# SQLite for development. To move to PostgreSQL later, swap ENGINE to
-# "django.db.backends.postgresql" and supply NAME/USER/PASSWORD/HOST/PORT.
+# SQLite for development; set DATABASE_URL (postgres://...) for production.
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+    )
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -91,12 +106,31 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# React dev server (Vite) talks to Django through a proxy on localhost:5173.
-CSRF_TRUSTED_ORIGINS = [
-    o
-    for o in os.environ.get(
-        "DJANGO_CSRF_TRUSTED_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173",
-    ).split(",")
-    if o
-]
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        if not DEBUG
+        else "django.contrib.staticfiles.storage.StaticFilesStorage"
+    },
+}
+
+# Render's free web service has no persistent disk, so in production uploaded
+# images are stored in the database (property_lister.storage.DatabaseStorage).
+MEDIA_IN_DATABASE = os.environ.get("MEDIA_IN_DATABASE", "0") == "1"
+if MEDIA_IN_DATABASE:
+    STORAGES["default"] = {"BACKEND": "property_lister.storage.DatabaseStorage"}
+
+# Development: the React dev server (Vite) proxies to Django from localhost:5173.
+# Production: set DJANGO_CSRF_TRUSTED_ORIGINS to your Vercel URL(s).
+CSRF_TRUSTED_ORIGINS = env_list(
+    "DJANGO_CSRF_TRUSTED_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173",
+)
+
+if not DEBUG:
+    # Render terminates TLS and forwards the original scheme.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True

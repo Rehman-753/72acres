@@ -102,7 +102,7 @@ export default function PropertyForm() {
 
   return (
     <FormCtx.Provider value={{ v, set, err, options }}>
-    <form onSubmit={submit} encType="multipart/form-data">
+    <form className="pform" onSubmit={submit} encType="multipart/form-data">
       <h2>{editing ? 'Edit Property' : 'Add Property'}</h2>
       {formError && <div className="form-error" style={{ marginTop: 16 }}>{formError}</div>}
 
@@ -149,7 +149,7 @@ export default function PropertyForm() {
         <Input k="possession_date" label="Possession Date" type="date" />
         <div />
         <div className="field">
-          <label className="check" style={{ textTransform: 'none', letterSpacing: 0, fontSize: 15 }}>
+          <label className="check-line">
             <input type="checkbox" checked={v.rera_registered} onChange={(e) => setV({ ...v, rera_registered: e.target.checked })} style={{ width: 'auto' }} />
             RERA registered
           </label>
@@ -191,3 +191,4 @@ export default function PropertyForm() {
     </FormCtx.Provider>
   )
 }
+

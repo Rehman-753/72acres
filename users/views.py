@@ -29,7 +29,12 @@ def _decimal(value):
 
 @require_GET
 def options(request):
-    return JsonResponse(choices_payload())
+    data = choices_payload()
+    # Cities that currently have public listings (drives the search "City" dropdown).
+    data["cities"] = list(
+        public_properties().order_by("city").values_list("city", flat=True).distinct()
+    )
+    return JsonResponse(data)
 
 
 @require_GET
@@ -52,8 +57,11 @@ def property_list(request):
 
     if params.get("listing_type") in dict(PropertyDetail.LISTING_TYPE_CHOICES):
         qs = qs.filter(listing_type=params["listing_type"])
-    if params.get("property_type") in dict(PropertyDetail.PROPERTY_TYPE_CHOICES):
-        qs = qs.filter(property_type=params["property_type"])
+    # Accepts one type or a comma-separated group, e.g. "office,shop".
+    valid_types = dict(PropertyDetail.PROPERTY_TYPE_CHOICES)
+    types = [t for t in params.get("property_type", "").split(",") if t in valid_types]
+    if types:
+        qs = qs.filter(property_type__in=types)
 
     bhk = params.get("bhk", "")
     if bhk.isdigit():

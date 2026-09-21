@@ -1,0 +1,42 @@
+# Render Blueprint: Django backend (API + admin) + free Postgres, all on Render.
+# The React site is deployed separately on Vercel (see frontend/vercel.json).
+databases:
+  - name: project72acres-db
+    plan: free
+    databaseName: project72acres
+    user: project72acres
+
+services:
+  - type: web
+    name: project72acres
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --no-input
+    # Free plans have no shell, so migrate + create the first admin on start-up.
+    # createsuperuser --noinput reads DJANGO_SUPERUSER_* and safely fails if it already exists.
+    startCommand: python manage.py migrate --no-input && (python manage.py createsuperuser --noinput || true) && gunicorn project72acres.wsgi:application --bind 0.0.0.0:$PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: DJANGO_DEBUG
+        value: "0"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      # Free Render has no persistent disk: keep uploaded photos in Postgres.
+      - key: MEDIA_IN_DATABASE
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: project72acres-db
+          property: connectionString
+      # Your Vercel site, e.g. https://myapp.vercel.app  (no trailing slash)
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        sync: false
+      # First admin login (created automatically on first start)
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false

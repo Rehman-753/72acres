@@ -1,13 +1,13 @@
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.forms import AuthenticationForm
-from django.http import JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
 from .decorators import lister_required
 from .forms import ListerProfileForm, PropertyForm
-from .models import ListerProfile, PropertyDetail
+from .models import ListerProfile, PropertyDetail, StoredFile
 from .serializers import property_to_dict
 
 
@@ -23,6 +23,21 @@ def _profile_dict(user, profile):
 
 def _form_errors(form):
     return JsonResponse({"error": "validation", "errors": form.errors.get_json_data()}, status=400)
+
+
+# --------------------------------------------------------------- media ----
+
+@require_GET
+def media_file(request, name):
+    """Public, read-only image download for DatabaseStorage. Only raster images
+    are served (never SVG/HTML) so an upload can't become stored XSS."""
+    row = StoredFile.objects.filter(name=name).first()
+    ctype = row.content_type if row else ""
+    if not row or not ctype.startswith("image/") or "svg" in ctype:
+        raise Http404
+    response = HttpResponse(bytes(row.content), content_type=ctype)
+    response["Cache-Control"] = "public, max-age=86400"
+    return response
 
 
 # ---------------------------------------------------------------- auth ----

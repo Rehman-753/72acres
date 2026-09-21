@@ -17,10 +17,12 @@ export default function PropertyDetail() {
 
   if (notFound)
     return (
-      <div className="wrap"><div className="empty">
-        <h2>Property not found</h2>
-        <p><Link to="/properties" className="btn-primary" style={{ marginTop: 20 }}>Back to Properties</Link></p>
-      </div></div>
+      <div className="wrap">
+        <div className="empty">
+          <h2>Property not found</h2>
+          <p style={{ marginTop: 20 }}><Link to="/properties" className="btn-primary">Back to Properties</Link></p>
+        </div>
+      </div>
     )
   if (!p) return <div className="loading">Loading…</div>
 
@@ -34,13 +36,14 @@ export default function PropertyDetail() {
       </div>
 
       {p.related.length > 0 && (
-        <section className="related">
+        <section className="ivory related">
           <div className="wrap">
-            <div className="section-head">
+            <div className="section-head reveal">
               <div>
-                <div className="eyebrow">You may also like</div>
-                <h2>Related <em className="hl">Properties</em></h2>
+                <div className="eyebrow">You May Also Like</div>
+                <h2>Related <em>Properties</em></h2>
               </div>
+              <p>More properties in {p.city} or of the same type.</p>
             </div>
             <div className="property-grid">
               {p.related.map((r) => <PropertyCard key={r.id} p={r} />)}
@@ -48,7 +51,6 @@ export default function PropertyDetail() {
           </div>
         </section>
       )}
-      <div style={{ height: p.related.length ? 0 : 80 }} />
     </>
   )
 }

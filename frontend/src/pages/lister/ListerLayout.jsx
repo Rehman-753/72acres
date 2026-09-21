@@ -40,8 +40,11 @@ export default function ListerLayout() {
           <span>Property Lister</span>
         </div>
         <NavLink to="/lister/dashboard">Dashboard</NavLink>
-        <NavLink to="/lister/properties" end>My Properties · All Properties</NavLink>
-        <NavLink to="/lister/properties/add">Add Property</NavLink>
+        <div className="group">My Properties</div>
+        <div className="sub">
+          <NavLink to="/lister/properties" end>All Properties</NavLink>
+          <NavLink to="/lister/properties/add">Add Property</NavLink>
+        </div>
         <NavLink to="/lister/profile">My Profile</NavLink>
         <button onClick={doLogout}>Logout</button>
       </aside>
