@@ -1,25 +1,26 @@
-from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.forms import AuthenticationForm
 from django.http import Http404, HttpResponse, JsonResponse
-from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from .decorators import lister_required
 from .forms import ListerProfileForm, PropertyForm
-from .models import ListerProfile, PropertyDetail, StoredFile
+from .models import AuthToken, ListerProfile, PropertyDetail, StoredFile
 from .serializers import property_to_dict
 
 
-def _profile_dict(user, profile):
-    return {
+def _profile_dict(user, profile, token=None):
+    data = {
         "username": user.username,
         "first_name": user.first_name,
         "last_name": user.last_name,
         "email": user.email,
         "approval_status": profile.approval_status,
     }
+    if token is not None:
+        data["token"] = token
+    return data
 
 
 def _form_errors(form):
@@ -42,15 +43,15 @@ def media_file(request, name):
 
 
 # ---------------------------------------------------------------- auth ----
+# Login is by bearer token (see decorators.py), not a session cookie: the
+# frontend (Vercel) and backend (Render) are different sites, and browsers
+# commonly block that cross-site cookie by default (e.g. Safari), which
+# silently breaks login for some visitors. A token the page holds itself and
+# sends in a header isn't a cookie, so it works the same on every browser.
+# Since nothing is authenticated by an ambient cookie here, these endpoints
+# don't need Django's CSRF protection either.
 
-@require_GET
-@ensure_csrf_cookie
-def csrf(request):
-    # The frontend runs on a different domain in production (Vercel vs Render),
-    # so it can't read the csrftoken cookie via JS; hand the value back directly.
-    return JsonResponse({"ok": True, "csrfToken": get_token(request)})
-
-
+@csrf_exempt
 @require_POST
 def login_view(request):
     form = AuthenticationForm(request, data=request.POST)
@@ -63,13 +64,18 @@ def login_view(request):
             {"error": "not_a_lister", "message": "This account is not a property lister."},
             status=403,
         )
-    login(request, user)
-    return JsonResponse(_profile_dict(user, profile))
+    # Replace any previous token outright (update_or_create would keep the old
+    # key since it's already set, leaving the earlier login still valid).
+    AuthToken.objects.filter(user=user).delete()
+    token = AuthToken.objects.create(user=user)
+    return JsonResponse(_profile_dict(user, profile, token.key))
 
 
+@csrf_exempt
 @require_POST
+@lister_required(approved=False)
 def logout_view(request):
-    logout(request)
+    AuthToken.objects.filter(user=request.user).delete()
     return JsonResponse({"ok": True})
 
 
@@ -99,6 +105,7 @@ def property_list(request):
     return JsonResponse({"results": [property_to_dict(p, request) for p in qs]})
 
 
+@csrf_exempt
 @require_POST
 @lister_required
 def property_add(request):
@@ -118,6 +125,7 @@ def property_detail(request, property_id):
     return JsonResponse(property_to_dict(obj, request))
 
 
+@csrf_exempt
 @require_POST
 @lister_required
 def property_edit(request, property_id):
@@ -131,6 +139,7 @@ def property_edit(request, property_id):
     return JsonResponse(property_to_dict(obj, request))
 
 
+@csrf_exempt
 @require_POST
 @lister_required
 def property_delete(request, property_id):
@@ -141,6 +150,7 @@ def property_delete(request, property_id):
 
 # ------------------------------------------------------------- profile ----
 
+@csrf_exempt
 @lister_required
 def profile(request):
     if request.method == "POST":

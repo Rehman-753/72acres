@@ -1,25 +1,28 @@
-// Thin fetch wrapper. Auth is Django's session cookie; state-changing requests
-// carry Django's CSRF token. Permissions are enforced by Django, not here.
+// Thin fetch wrapper. Auth is a bearer token (not a session cookie): the
+// React site (Vercel) and Django (Render) are different sites, and browsers
+// commonly block cross-site cookies by default (e.g. Safari), which silently
+// breaks login for some visitors. A token the page holds itself and sends in
+// a header works the same on every browser. See auth.jsx for storage.
 //
-// In dev, Vite proxies /api to Django (same origin). In production the React
-// site (Vercel) and Django (Render) are different domains, so API_BASE points
-// requests at the real backend, and the CSRF token is read from the JSON
-// response below instead of the cookie (cross-domain JS can't read it).
+// In dev, Vite proxies /api to Django (same origin, no CORS needed). In
+// production API_BASE points requests at the real Render backend.
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
+const TOKEN_KEY = 'lister_token'
 
-let csrfToken = null
-let csrfReady = null
-function ensureCsrf() {
-  if (csrfToken) return Promise.resolve()
-  if (!csrfReady) {
-    csrfReady = fetch(`${API_BASE}/api/lister/csrf/`, { credentials: 'include' })
-      .then((r) => r.json())
-      .then((data) => {
-        csrfToken = data.csrfToken
-      })
+export const getToken = () => {
+  try {
+    return localStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
   }
-  return csrfReady
+}
+export const setToken = (token) => {
+  try {
+    token ? localStorage.setItem(TOKEN_KEY, token) : localStorage.removeItem(TOKEN_KEY)
+  } catch {
+    /* private browsing etc: session just won't persist across reloads */
+  }
 }
 
 export class ApiError extends Error {
@@ -33,11 +36,9 @@ export class ApiError extends Error {
 
 async function request(path, { method = 'GET', body } = {}) {
   const headers = {}
-  if (method !== 'GET') {
-    await ensureCsrf()
-    headers['X-CSRFToken'] = csrfToken || ''
-  }
-  const res = await fetch(`${API_BASE}${path}`, { method, body, headers, credentials: 'include' })
+  const token = getToken()
+  if (token) headers['Authorization'] = `Token ${token}`
+  const res = await fetch(`${API_BASE}${path}`, { method, body, headers })
   let data = null
   try {
     data = await res.json()

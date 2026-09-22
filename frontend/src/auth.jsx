@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { get, post } from './api.js'
+import { get, post, setToken } from './api.js'
 
 const AuthContext = createContext(null)
 export const useAuth = () => useContext(AuthContext)
@@ -27,13 +27,18 @@ export function AuthProvider({ children }) {
     fd.append('username', username)
     fd.append('password', password)
     const profile = await post('/api/lister/login/', fd)
+    setToken(profile.token)
     setUser(profile)
     return profile
   }
 
   const logout = async () => {
-    await post('/api/lister/logout/')
-    setUser(null)
+    try {
+      await post('/api/lister/logout/')
+    } finally {
+      setToken(null)
+      setUser(null)
+    }
   }
 
   return (

@@ -1,6 +1,32 @@
+import secrets
+
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
+
+
+class AuthToken(models.Model):
+    """Login token for the lister API (see decorators.token_required).
+
+    Replaces Django's session cookie for these endpoints: the frontend (Vercel)
+    and backend (Render) are different sites, and browsers increasingly block
+    that cross-site cookie by default (e.g. Safari), which silently breaks
+    login for some visitors. A token the page holds and sends itself in a
+    header isn't a cookie, so it isn't subject to that blocking. One token per
+    user; logging in again replaces the previous one (logs out other sessions).
+    """
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="auth_token")
+    key = models.CharField(max_length=64, unique=True, editable=False)
+    created = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = secrets.token_urlsafe(40)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"token for {self.user.username}"
 
 
 class ListerProfile(models.Model):

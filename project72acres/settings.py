@@ -127,15 +127,21 @@ if MEDIA_IN_DATABASE:
 
 # Development: the React dev server (Vite) proxies to Django from localhost:5173,
 # so requests are same-origin. Production: the React site (Vercel) and Django
-# (Render) are on different domains, so this list is both the allowed CSRF
-# origins and (below) the allowed CORS origins for the frontend's API calls.
+# (Render) are on different domains, so the frontend's API calls are
+# cross-origin - CORS must allow it. (CSRF_TRUSTED_ORIGINS still matters for
+# the Django admin's own login form, served directly from Render.)
 FRONTEND_ORIGINS = env_list(
     "DJANGO_CSRF_TRUSTED_ORIGINS",
     "http://localhost:5173,http://127.0.0.1:5173",
 )
 CSRF_TRUSTED_ORIGINS = FRONTEND_ORIGINS
 CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
-CORS_ALLOW_CREDENTIALS = True  # the frontend sends the session cookie via credentials: 'include'
+# The lister API authenticates with a bearer token (see property_lister/decorators.py),
+# not a cookie, so no cross-site cookie needs to be sent - browsers that block
+# third-party cookies (e.g. Safari) are unaffected. Django's own admin login
+# still uses a normal session cookie, but that's same-origin (visited directly
+# on Render), so it doesn't need special cross-site cookie settings either.
+CORS_ALLOW_CREDENTIALS = False
 
 if not DEBUG:
     # Render terminates TLS and forwards the original scheme.
@@ -143,7 +149,3 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
-    # The frontend (Vercel) and backend (Render) are different sites, so the
-    # session/CSRF cookies must be marked SameSite=None to be sent cross-site.
-    SESSION_COOKIE_SAMESITE = "None"
-    CSRF_COOKIE_SAMESITE = "None"

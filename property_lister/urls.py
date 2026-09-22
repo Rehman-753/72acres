@@ -5,7 +5,6 @@ from . import views
 app_name = "property_lister"
 
 urlpatterns = [
-    path("csrf/", views.csrf, name="csrf"),
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),
     path("me/", views.me, name="me"),

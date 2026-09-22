@@ -3,7 +3,7 @@ from django.http import Http404
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
-from .models import PropertyDetail, StoredFile
+from .models import AuthToken, PropertyDetail, StoredFile
 from .storage import DatabaseStorage
 from .tests import make_image, make_lister, property_payload
 from .views import media_file
@@ -36,8 +36,12 @@ class DatabaseStorageTests(TestCase):
     @override_settings(STORAGES=DB_STORAGES)
     def test_lister_upload_goes_to_database_and_is_served(self):
         user = make_lister("dbl")
-        self.client.force_login(user)
-        r = self.client.post(reverse("property_lister:property_add"), property_payload(image_1=make_image("pic.png")))
+        token = AuthToken.objects.create(user=user)
+        r = self.client.post(
+            reverse("property_lister:property_add"),
+            property_payload(image_1=make_image("pic.png")),
+            HTTP_AUTHORIZATION=f"Token {token.key}",
+        )
         self.assertEqual(r.status_code, 201, r.content)
         prop = PropertyDetail.objects.get()
         self.assertTrue(StoredFile.objects.filter(name=prop.image_1.name).exists())

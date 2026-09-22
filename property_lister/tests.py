@@ -8,7 +8,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
-from .models import ListerProfile, PropertyDetail
+from .models import AuthToken, ListerProfile, PropertyDetail
 
 TMP_MEDIA = tempfile.mkdtemp()
 
@@ -72,7 +72,11 @@ class ListerPortalTests(TestCase):
         self.prop_b = make_property(self.b, title="B's")
 
     def login(self, user):
-        self.client.force_login(user)
+        # Auth is a bearer token, not a session cookie (see decorators.py) -
+        # attach it to every subsequent request this test client makes.
+        token, _ = AuthToken.objects.update_or_create(user=user)
+        self.client.defaults["HTTP_AUTHORIZATION"] = f"Token {token.key}"
+        return token.key
 
     # --- profile / approval -------------------------------------------
     def test_new_user_gets_pending_profile_but_superuser_does_not(self):
@@ -86,6 +90,39 @@ class ListerPortalTests(TestCase):
         r = self.client.post(reverse("property_lister:login"), {"username": "p", "password": "pass12345"})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()["approval_status"], "PENDING")
+        self.assertTrue(r.json()["token"])
+
+    def test_login_issues_a_token_that_authorizes_requests(self):
+        r = self.client.post(reverse("property_lister:login"), {"username": "a", "password": "pass12345"})
+        token = r.json()["token"]
+        r2 = self.client.get(reverse("property_lister:me"), HTTP_AUTHORIZATION=f"Token {token}")
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r2.json()["username"], "a")
+
+    def test_session_cookie_alone_does_not_grant_api_access(self):
+        # Django's normal session login must NOT be enough on its own: the API
+        # only trusts the bearer token (session cookies get blocked cross-site
+        # by some browsers, e.g. Safari).
+        self.client.force_login(self.a)
+        self.assertEqual(self.client.get(reverse("property_lister:me")).status_code, 401)
+
+    def test_invalid_or_missing_token_is_401(self):
+        r = self.client.get(reverse("property_lister:me"), HTTP_AUTHORIZATION="Token not-a-real-token")
+        self.assertEqual(r.status_code, 401)
+
+    def test_logout_invalidates_the_token(self):
+        token = self.login(self.a)
+        self.assertEqual(self.client.get(reverse("property_lister:me")).status_code, 200)
+        self.assertEqual(self.client.post(reverse("property_lister:logout")).status_code, 200)
+        r = self.client.get(reverse("property_lister:me"), HTTP_AUTHORIZATION=f"Token {token}")
+        self.assertEqual(r.status_code, 401)
+
+    def test_second_login_invalidates_the_first_token(self):
+        old_token = self.login(self.a)
+        del self.client.defaults["HTTP_AUTHORIZATION"]
+        self.client.post(reverse("property_lister:login"), {"username": "a", "password": "pass12345"})
+        r = self.client.get(reverse("property_lister:me"), HTTP_AUTHORIZATION=f"Token {old_token}")
+        self.assertEqual(r.status_code, 401)
 
     def test_login_rejects_bad_password_and_non_listers(self):
         r = self.client.post(reverse("property_lister:login"), {"username": "a", "password": "nope"})
@@ -190,10 +227,9 @@ class ListerPortalTests(TestCase):
         self.a.refresh_from_db()
         self.assertEqual(self.a.email, "a@x.com")
 
-    def test_csrf_enforced(self):
-        from django.test import Client
-
-        c = Client(enforce_csrf_checks=True)
-        c.force_login(self.a)
-        r = c.post(reverse("property_lister:property_delete", args=[self.prop_a.id]))
-        self.assertEqual(r.status_code, 403)
+    def test_create_assigns_owner_not_from_a_session_cookie(self):
+        # A logged-in Django session (e.g. an admin browsing while signed into
+        # /admin/) must not let someone else's requests act as this lister.
+        self.client.force_login(self.b)
+        r = self.client.post(reverse("property_lister:property_add"), property_payload())
+        self.assertEqual(r.status_code, 401)
