@@ -23,11 +23,16 @@ _CHOICE_FIELDS = [
 _AMENITY_LABELS = dict(PropertyDetail.AMENITY_CHOICES)
 
 
-def _image_url(field):
-    return field.url if field else None
+def _image_url(field, request):
+    if not field:
+        return None
+    # Absolute so the URL still works when the React frontend is served from a
+    # different domain (Vercel) than the API (Render) - a bare "/media/..."
+    # path would resolve against the wrong origin in the browser.
+    return request.build_absolute_uri(field.url) if request else field.url
 
 
-def property_to_dict(p):
+def property_to_dict(p, request=None):
     data = {
         "id": p.id,
         "title": p.title,
@@ -49,7 +54,13 @@ def property_to_dict(p):
             _AMENITY_LABELS[a] for a in (p.amenities or []) if a in _AMENITY_LABELS
         ],
         "images": [
-            url for url in (_image_url(p.image_1), _image_url(p.image_2), _image_url(p.image_3)) if url
+            url
+            for url in (
+                _image_url(p.image_1, request),
+                _image_url(p.image_2, request),
+                _image_url(p.image_3, request),
+            )
+            if url
         ],
     }
     for name in _CHOICE_FIELDS:

@@ -1,10 +1,12 @@
 """
 Django settings for project72acres.
 
-Development defaults work out of the box (SQLite, local media). Production is
-configured purely through environment variables (see DEPLOY.md):
-  DJANGO_SECRET_KEY, DJANGO_DEBUG=0, DJANGO_ALLOWED_HOSTS,
-  DJANGO_CSRF_TRUSTED_ORIGINS, DATABASE_URL, MEDIA_IN_DATABASE=1.
+Development defaults work out of the box (SQLite, local media, Vite proxy).
+Production runs the React site and Django on two different domains (Vercel's
+free plan can't proxy to an external host), so the API is called cross-origin:
+CORS + cross-site session/CSRF cookies are configured below. Set purely through
+environment variables (see DEPLOY.md): DJANGO_SECRET_KEY, DJANGO_DEBUG=0,
+DJANGO_ALLOWED_HOSTS, DJANGO_CSRF_TRUSTED_ORIGINS, DATABASE_URL, MEDIA_IN_DATABASE=1.
 """
 
 import os
@@ -40,6 +42,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "corsheaders",
     "users",
     "property_lister",
 ]
@@ -47,6 +50,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",  # serves collected static files (admin CSS/JS)
+    "corsheaders.middleware.CorsMiddleware",  # must come before CommonMiddleware
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -121,12 +125,17 @@ MEDIA_IN_DATABASE = os.environ.get("MEDIA_IN_DATABASE", "0") == "1"
 if MEDIA_IN_DATABASE:
     STORAGES["default"] = {"BACKEND": "property_lister.storage.DatabaseStorage"}
 
-# Development: the React dev server (Vite) proxies to Django from localhost:5173.
-# Production: set DJANGO_CSRF_TRUSTED_ORIGINS to your Vercel URL(s).
-CSRF_TRUSTED_ORIGINS = env_list(
+# Development: the React dev server (Vite) proxies to Django from localhost:5173,
+# so requests are same-origin. Production: the React site (Vercel) and Django
+# (Render) are on different domains, so this list is both the allowed CSRF
+# origins and (below) the allowed CORS origins for the frontend's API calls.
+FRONTEND_ORIGINS = env_list(
     "DJANGO_CSRF_TRUSTED_ORIGINS",
     "http://localhost:5173,http://127.0.0.1:5173",
 )
+CSRF_TRUSTED_ORIGINS = FRONTEND_ORIGINS
+CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
+CORS_ALLOW_CREDENTIALS = True  # the frontend sends the session cookie via credentials: 'include'
 
 if not DEBUG:
     # Render terminates TLS and forwards the original scheme.
@@ -134,3 +143,7 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    # The frontend (Vercel) and backend (Render) are different sites, so the
+    # session/CSRF cookies must be marked SameSite=None to be sent cross-site.
+    SESSION_COOKIE_SAMESITE = "None"
+    CSRF_COOKIE_SAMESITE = "None"

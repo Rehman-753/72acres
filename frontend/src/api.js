@@ -1,15 +1,24 @@
 // Thin fetch wrapper. Auth is Django's session cookie; state-changing requests
 // carry Django's CSRF token. Permissions are enforced by Django, not here.
+//
+// In dev, Vite proxies /api to Django (same origin). In production the React
+// site (Vercel) and Django (Render) are different domains, so API_BASE points
+// requests at the real backend, and the CSRF token is read from the JSON
+// response below instead of the cookie (cross-domain JS can't read it).
 
-function getCookie(name) {
-  const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'))
-  return m ? decodeURIComponent(m[1]) : null
-}
+const API_BASE = import.meta.env.VITE_API_BASE || ''
 
+let csrfToken = null
 let csrfReady = null
 function ensureCsrf() {
-  if (getCookie('csrftoken')) return Promise.resolve()
-  if (!csrfReady) csrfReady = fetch('/api/lister/csrf/', { credentials: 'include' })
+  if (csrfToken) return Promise.resolve()
+  if (!csrfReady) {
+    csrfReady = fetch(`${API_BASE}/api/lister/csrf/`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => {
+        csrfToken = data.csrfToken
+      })
+  }
   return csrfReady
 }
 
@@ -26,9 +35,9 @@ async function request(path, { method = 'GET', body } = {}) {
   const headers = {}
   if (method !== 'GET') {
     await ensureCsrf()
-    headers['X-CSRFToken'] = getCookie('csrftoken') || ''
+    headers['X-CSRFToken'] = csrfToken || ''
   }
-  const res = await fetch(path, { method, body, headers, credentials: 'include' })
+  const res = await fetch(`${API_BASE}${path}`, { method, body, headers, credentials: 'include' })
   let data = null
   try {
     data = await res.json()

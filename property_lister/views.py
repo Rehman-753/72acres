@@ -1,6 +1,7 @@
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.forms import AuthenticationForm
 from django.http import Http404, HttpResponse, JsonResponse
+from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
@@ -45,7 +46,9 @@ def media_file(request, name):
 @require_GET
 @ensure_csrf_cookie
 def csrf(request):
-    return JsonResponse({"ok": True})
+    # The frontend runs on a different domain in production (Vercel vs Render),
+    # so it can't read the csrftoken cookie via JS; hand the value back directly.
+    return JsonResponse({"ok": True, "csrfToken": get_token(request)})
 
 
 @require_POST
@@ -93,7 +96,7 @@ def dashboard(request):
 @lister_required
 def property_list(request):
     qs = PropertyDetail.objects.filter(lister=request.user)
-    return JsonResponse({"results": [property_to_dict(p) for p in qs]})
+    return JsonResponse({"results": [property_to_dict(p, request) for p in qs]})
 
 
 @require_POST
@@ -105,14 +108,14 @@ def property_add(request):
     obj = form.save(commit=False)
     obj.lister = request.user  # never taken from the request
     obj.save()
-    return JsonResponse(property_to_dict(obj), status=201)
+    return JsonResponse(property_to_dict(obj, request), status=201)
 
 
 @require_GET
 @lister_required
 def property_detail(request, property_id):
     obj = get_object_or_404(PropertyDetail, id=property_id, lister=request.user)
-    return JsonResponse(property_to_dict(obj))
+    return JsonResponse(property_to_dict(obj, request))
 
 
 @require_POST
@@ -125,7 +128,7 @@ def property_edit(request, property_id):
     obj = form.save(commit=False)
     obj.lister = request.user  # re-assert ownership
     obj.save()
-    return JsonResponse(property_to_dict(obj))
+    return JsonResponse(property_to_dict(obj, request))
 
 
 @require_POST

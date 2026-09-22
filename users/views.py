@@ -89,7 +89,7 @@ def property_list(request):
 
     return JsonResponse(
         {
-            "results": [property_to_dict(p) for p in page.object_list],
+            "results": [property_to_dict(p, request) for p in page.object_list],
             "count": paginator.count,
             "page": page.number,
             "num_pages": paginator.num_pages,
@@ -118,6 +118,6 @@ def property_detail(request, property_id):
         .order_by("-score", "-id")[:RELATED_LIMIT]
     )
 
-    data = property_to_dict(obj)
-    data["related"] = [property_to_dict(p) for p in related]
+    data = property_to_dict(obj, request)
+    data["related"] = [property_to_dict(p, request) for p in related]
     return JsonResponse(data)
