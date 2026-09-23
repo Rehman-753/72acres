@@ -2,23 +2,49 @@
    from index.html). Uses the same tokens: --green, --ink, --grey, Poppins. */
 
 /* ---------- hero: text left, search box right ---------- */
+/* html/body already have overflow-x:hidden (from the reference stylesheet),
+   which HIDES horizontal overflow instead of preventing it - so an element
+   that's too wide gets silently clipped rather than causing a scrollbar.
+   min-width:0 on the grid's children stops the search card's own content
+   from forcing the grid (and the page) wider than the viewport in the first
+   place, which is what actually needs fixing. */
 .hero{text-align:left;}
 .hero-inner.split{display:grid;grid-template-columns:1.05fr 1fr;gap:60px;align-items:center;}
+.hero-inner.split > *{min-width:0;}
 .hero-inner.split h1{margin:0;}
 .hero-inner.split .hero-lede{margin:24px 0 0;}
-.hero-inner.split .hero-ctas,
-.hero-inner.split .hero-trust{justify-content:flex-start;}
-.hero-inner.split .hero-trust{gap:0;row-gap:24px;}
-.hero-inner.split .hero-trust div{align-items:flex-start;padding:0 28px;}
-.hero-inner.split .hero-trust div:first-child{padding-left:0;}
 .hero-inner.split .search-card{margin:0;max-width:none;}
-.hero-inner.split .search-fields{grid-template-columns:1fr 1fr;}
-.hero-inner.split .search-field:nth-child(2n){border-right:0;}
-.hero-inner.split .search-field{border-bottom:1px solid var(--grey);}
-.hero-inner.split .search-btn{grid-column:1/-1;padding:18px;justify-content:center;}
 @media(max-width:1000px){.hero-inner.split{grid-template-columns:1fr;gap:44px;}}
-@media(max-width:520px){.hero-inner.split .search-fields{grid-template-columns:1fr;}.hero-inner.split .search-field{border-right:0;}}
+
+/* Desktop-only split-hero tweaks (wide screens - the >900px search-fields
+   breakpoint from the reference stylesheet still applies below this and must
+   win on mobile, so these are deliberately scoped to not overlap it). */
+@media(min-width:1001px){
+  .hero-inner.split .hero-ctas,
+  .hero-inner.split .hero-trust{justify-content:flex-start;}
+  .hero-inner.split .hero-trust{gap:0;row-gap:24px;}
+  .hero-inner.split .hero-trust div{align-items:flex-start;padding:0 28px;border-right:1px solid var(--grey);}
+  .hero-inner.split .hero-trust div:first-child{padding-left:0;}
+  .hero-inner.split .search-fields{grid-template-columns:1fr 1fr;}
+  .hero-inner.split .search-field:nth-child(2n){border-right:0;}
+  .hero-inner.split .search-field{border-bottom:1px solid var(--grey);}
+  .hero-inner.split .search-btn{grid-column:1/-1;padding:18px;justify-content:center;}
+}
+
+/* Search tabs (Buy/Rent/Commercial/Plots): the reference design never wraps
+   or shrinks these, so 4 tabs overflow a phone-width screen. Let them wrap
+   into a 2x2 grid below 520px instead of spilling past the edge. */
+@media(max-width:520px){
+  .search-tabs{flex-wrap:wrap;}
+  .search-tab{flex:1 1 calc(50% - 4px);text-align:center;padding:10px 6px;font-size:13.5px;}
+  .search-fields{grid-template-columns:1fr;}
+  .search-field{border-right:0 !important;}
+}
 .search-field select:disabled{opacity:.5;}
+
+/* Small-screen safety net for the floating WhatsApp/back-to-top buttons so
+   they don't sit on top of the last bit of page content. */
+@media(max-width:480px){.float-stack{bottom:16px;right:16px;}}
 
 /* inner pages sit below the fixed header */
 .page-top{padding-top:84px;}
